@@ -1,14 +1,21 @@
-import './App.css'
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import Navbar from './components/Navbar';
+import Home from './pages/Home';
+import Translator from './pages/Translator';
 
-function App() {
-
+export function App() {
   return (
-    <>
-      <h1 className="text-3xl font-bold underline">
-        Hello world!
-      </h1>
-    </>
-  )
+    <Router>
+      <div className="min-h-screen bg-[#0A1628] text-white font-sans selection:bg-cyan-500/30">
+        <Navbar />
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/translate" element={<Translator />} />
+        </Routes>
+      </div>
+    </Router>
+  );
 }
 
-export default App
+export default App;
