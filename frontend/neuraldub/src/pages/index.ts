@@ -1,3 +1,10 @@
 // Export all pages from a single location
 export { default as Home } from './Home'
 export { default as Translator } from './Translator'
+export { default as Dashboard } from './Dashboard'
+export { default as Login } from './Login'
+export { default as Signup } from './Signup'
+export { default as Profile } from './Profile'
+export { default as VoiceClone } from './VoiceClone'
+export { default as LipSync } from './LipSync'
+export { default as NotFound } from './NotFound'
