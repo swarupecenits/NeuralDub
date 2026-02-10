@@ -1,6 +1,6 @@
 // API configuration and helper functions
 // Backend URL - Update this based on your backend configuration
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api'
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 
 export const API_ENDPOINTS = {
   // Auth
@@ -27,6 +27,13 @@ export const API_ENDPOINTS = {
   LIP_SYNC_CREATE: '/lip-sync',
   LIP_SYNC_GET: (id: string) => `/lip-sync/${id}`,
   LIP_SYNC_DELETE: (id: string) => `/lip-sync/${id}`,
+
+  // Speech Recognition (Whisper)
+  WHISPER_TRANSCRIBE: '/speech/transcribe',
+
+  // Translation (IndicTrans2)
+  TRANSLATE: '/translate',
+  TRANSLATE_BATCH: '/translate/batch',
 
   // Jobs
   JOBS_STATUS: (id: string) => `/jobs/${id}/status`,
