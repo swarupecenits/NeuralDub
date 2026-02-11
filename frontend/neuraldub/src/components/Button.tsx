@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { ReactNode } from 'react';
 import { motion, HTMLMotionProps } from 'framer-motion';
 interface ButtonProps extends HTMLMotionProps<'button'> {
-  variant?: 'primary' | 'secondary';
+  variant?: 'primary' | 'secondary' | 'outline';
   size?: 'sm' | 'md' | 'lg';
   children: ReactNode;
   className?: string;
@@ -19,6 +19,8 @@ export function Button({
     primary:
     'bg-cyan-500 text-white hover:bg-cyan-400 shadow-[0_0_20px_rgba(6,182,212,0.3)]',
     secondary:
+    'bg-transparent border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10 hover:border-cyan-500/50',
+    outline:
     'bg-transparent border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10 hover:border-cyan-500/50'
   };
   const sizes = {

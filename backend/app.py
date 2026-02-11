@@ -9,7 +9,14 @@ import logging
 import os
 from datetime import datetime
 from config import get_config
-from routes import speech_bp, translation_bp, init_whisper_service, init_translation_service
+from routes import (
+    speech_bp, 
+    translation_bp, 
+    lip_sync_bp,
+    init_whisper_service, 
+    init_translation_service,
+    init_lip_sync_service
+)
 
 # Configure logging
 logging.basicConfig(
@@ -66,9 +73,19 @@ def create_app(config=None):
         logger.exception(e)  # Print full traceback
         # Don't exit, allow graceful degradation
     
+    try:
+        logger.info("Initializing Lip Sync service...")
+        init_lip_sync_service(app)
+        logger.info("Lip Sync service initialized")
+    except Exception as e:
+        logger.error(f"Failed to initialize Lip Sync service: {str(e)}")
+        logger.exception(e)  # Print full traceback
+        # Don't exit, allow graceful degradation
+    
     # Register blueprints
     app.register_blueprint(speech_bp)
     app.register_blueprint(translation_bp)
+    app.register_blueprint(lip_sync_bp)
     
     # Root endpoint
     @app.route('/api', methods=['GET'])
@@ -90,6 +107,14 @@ def create_app(config=None):
                     'get_languages': 'GET /api/translate/languages',
                     'get_language_pairs': 'GET /api/translate/language-pairs',
                     'health': 'GET /api/health'
+                },
+                'lip_sync': {
+                    'generate': 'POST /api/lip-sync/generate',
+                    'status': 'GET /api/lip-sync/status/<job_id>',
+                    'download': 'GET /api/lip-sync/download/<job_id>',
+                    'cleanup': 'DELETE /api/lip-sync/cleanup/<job_id>',
+                    'jobs': 'GET /api/lip-sync/jobs',
+                    'health': 'GET /api/lip-sync/health'
                 }
             }
         }), 200
@@ -103,7 +128,8 @@ def create_app(config=None):
             'timestamp': datetime.utcnow().isoformat(),
             'services': {
                 'speech': 'ok',
-                'translation': 'ok'
+                'translation': 'ok',
+                'lip_sync': 'ok'
             }
         }), 200
     
