@@ -10,6 +10,7 @@ import os
 import uuid
 from datetime import datetime
 import traceback
+import threading
 from services.lip_sync_service import get_lip_sync_service
 
 logger = logging.getLogger(__name__)
@@ -201,6 +202,8 @@ def generate_lip_sync():
         # Initialize job status
         _active_jobs[job_id] = {
             'status': 'processing',
+            'progress': 0,
+            'stage': 'Initializing...',
             'created_at': datetime.now().isoformat(),
             'video_path': video_path,
             'audio_path': audio_path,
@@ -211,40 +214,56 @@ def generate_lip_sync():
         output_filename = f"lip_sync_{job_id}.mp4"
         output_path = os.path.join(output_dir, output_filename)
         
-        # Process asynchronously (in production, use celery or similar)
-        # For now, process synchronously
-        logger.info("Starting lip sync generation...")
-        result = _lip_sync_service.generate_lip_sync(
-            video_path=video_path,
-            audio_path=audio_path,
-            output_path=output_path,
-            bbox_shift=bbox_shift
-        )
+        # Process in background thread
+        def process_job():
+            try:
+                logger.info("Starting lip sync generation in background...")
+                
+                # Update progress callback
+                def update_progress(progress, stage):
+                    if job_id in _active_jobs:
+                        _active_jobs[job_id]['progress'] = progress
+                        _active_jobs[job_id]['stage'] = stage
+                        logger.info(f"Job {job_id}: {progress}% - {stage}")
+                
+                result = _lip_sync_service.generate_lip_sync(
+                    video_path=video_path,
+                    audio_path=audio_path,
+                    output_path=output_path,
+                    bbox_shift=bbox_shift,
+                    progress_callback=update_progress
+                )
+                
+                if result['success']:
+                    _active_jobs[job_id]['status'] = 'completed'
+                    _active_jobs[job_id]['progress'] = 100
+                    _active_jobs[job_id]['stage'] = 'Completed'
+                    _active_jobs[job_id]['output_path'] = result['output_path']
+                    _active_jobs[job_id]['completed_at'] = datetime.now().isoformat()
+                    logger.info(f"Lip sync completed successfully: {job_id}")
+                else:
+                    _active_jobs[job_id]['status'] = 'failed'
+                    _active_jobs[job_id]['error'] = result.get('error')
+                    logger.error(f"Lip sync failed: {result.get('error')}")
+                    
+            except Exception as e:
+                if job_id in _active_jobs:
+                    _active_jobs[job_id]['status'] = 'failed'
+                    _active_jobs[job_id]['error'] = str(e)
+                logger.error(f"Job {job_id} failed: {e}")
+                logger.error(traceback.format_exc())
         
-        if result['success']:
-            _active_jobs[job_id]['status'] = 'completed'
-            _active_jobs[job_id]['output_path'] = result['output_path']
-            _active_jobs[job_id]['completed_at'] = datetime.now().isoformat()
-            
-            logger.info(f"Lip sync completed successfully: {job_id}")
-            
-            return jsonify({
-                'success': True,
-                'job_id': job_id,
-                'message': 'Lip sync completed successfully',
-                'output_path': result['output_path']
-            }), 200
-        else:
-            _active_jobs[job_id]['status'] = 'failed'
-            _active_jobs[job_id]['error'] = result.get('error')
-            
-            logger.error(f"Lip sync failed: {result.get('error')}")
-            
-            return jsonify({
-                'success': False,
-                'job_id': job_id,
-                'error': result.get('error')
-            }), 500
+        # Start background processing
+        thread = threading.Thread(target=process_job, daemon=True)
+        thread.start()
+        
+        logger.info(f"Job {job_id} started in background")
+        
+        return jsonify({
+            'success': True,
+            'job_id': job_id,
+            'message': 'Lip sync job started'
+        }), 202
     
     except Exception as e:
         error_msg = f"Unexpected error: {str(e)}"
@@ -275,14 +294,18 @@ def get_job_status(job_id):
     
     job_info = _active_jobs[job_id]
     
-    return jsonify({
+    response = {
         'job_id': job_id,
         'status': job_info['status'],
+        'progress': job_info.get('progress', 0),
+        'stage': job_info.get('stage', ''),
         'created_at': job_info['created_at'],
         'completed_at': job_info.get('completed_at'),
         'output_path': job_info.get('output_path'),
         'error': job_info.get('error')
-    })
+    }
+    
+    return jsonify(response)
 
 
 @lip_sync_bp.route('/download/<job_id>', methods=['GET'])

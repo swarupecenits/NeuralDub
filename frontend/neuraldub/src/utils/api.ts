@@ -23,10 +23,12 @@ export const API_ENDPOINTS = {
   VOICE_CLONES_TRAIN: (id: string) => `/voice-clones/${id}/train`,
 
   // Lip Sync
-  LIP_SYNC_LIST: '/lip-sync',
-  LIP_SYNC_CREATE: '/lip-sync',
-  LIP_SYNC_GET: (id: string) => `/lip-sync/${id}`,
-  LIP_SYNC_DELETE: (id: string) => `/lip-sync/${id}`,
+  LIP_SYNC_HEALTH: '/lip-sync/health',
+  LIP_SYNC_GENERATE: '/lip-sync/generate',
+  LIP_SYNC_STATUS: (jobId: string) => `/lip-sync/status/${jobId}`,
+  LIP_SYNC_DOWNLOAD: (jobId: string) => `/lip-sync/download/${jobId}`,
+  LIP_SYNC_CLEANUP: (jobId: string) => `/lip-sync/cleanup/${jobId}`,
+  LIP_SYNC_JOBS: '/lip-sync/jobs',
 
   // Speech Recognition (Whisper)
   WHISPER_TRANSCRIBE: '/speech/transcribe',
@@ -58,6 +60,63 @@ export async function apiCall<T>(
   }
 
   return response.json()
+}
+
+// Lip Sync API functions
+export const lipSyncApi = {
+  // Generate lip-synced video
+  generate: async (videoFile: File, audioFile: File, bboxShift: number = 0) => {
+    const formData = new FormData()
+    formData.append('video', videoFile)
+    formData.append('audio', audioFile)
+    formData.append('bbox_shift', bboxShift.toString())
+
+    const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.LIP_SYNC_GENERATE}`, {
+      method: 'POST',
+      body: formData,
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Failed to generate lip sync')
+    }
+
+    return response.json()
+  },
+
+  // Check job status
+  getStatus: async (jobId: string) => {
+    const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.LIP_SYNC_STATUS(jobId)}`)
+    
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Failed to get status')
+    }
+
+    return response.json()
+  },
+
+  // Download result
+  download: async (jobId: string) => {
+    const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.LIP_SYNC_DOWNLOAD(jobId)}`)
+    
+    if (!response.ok) {
+      throw new Error('Failed to download video')
+    }
+
+    return response.blob()
+  },
+
+  // Get download URL
+  getDownloadUrl: (jobId: string) => {
+    return `${API_BASE_URL}${API_ENDPOINTS.LIP_SYNC_DOWNLOAD(jobId)}`
+  },
+
+  // Check health
+  checkHealth: async () => {
+    const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.LIP_SYNC_HEALTH}`)
+    return response.json()
+  },
 }
 
 // Mock API for development - Remove when backend is ready

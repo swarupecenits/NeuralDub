@@ -1,13 +1,19 @@
-import React, { useState } from 'react'
-import { Upload, Play, Download, Settings, Zap } from 'lucide-react'
+import React, { useState, useEffect } from 'react'
+import { Upload, Play, Download, Settings, Zap, AlertCircle, CheckCircle } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { Button } from '../components/Button'
+import { lipSyncApi } from '../utils/api'
 
 export function LipSync() {
   const [videoFile, setVideoFile] = useState<File | null>(null)
   const [audioFile, setAudioFile] = useState<File | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [progress, setProgress] = useState(0)
+  const [jobId, setJobId] = useState<string | null>(null)
+  const [outputVideoUrl, setOutputVideoUrl] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [statusMessage, setStatusMessage] = useState<string>('')
+  const [bboxShift, setBboxShift] = useState(0)
 
   const handleVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -23,23 +29,93 @@ export function LipSync() {
     }
   }
 
-  const handleStartLipSync = () => {
+  const handleStartLipSync = async () => {
     if (!videoFile || !audioFile) {
       return
     }
 
     setIsProcessing(true)
     setProgress(0)
-    const interval = setInterval(() => {
-      setProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval)
-          setIsProcessing(false)
-          return 100
+    setError(null)
+    setOutputVideoUrl(null)
+    setStatusMessage('Uploading files...')
+
+    try {
+      // Upload and start processing
+      const response = await lipSyncApi.generate(videoFile, audioFile, bboxShift)
+      console.log('Generate response:', response)
+      
+      const newJobId = response.job_id
+      setJobId(newJobId)
+      setProgress(10)
+      setStatusMessage('Processing video...')
+
+      // Poll for status
+      const statusInterval = setInterval(async () => {
+        try {
+          const status = await lipSyncApi.getStatus(newJobId)
+          console.log('Status:', status)
+
+          if (status.status === 'completed') {
+            clearInterval(statusInterval)
+            setProgress(100)
+            setIsProcessing(false)
+            setStatusMessage('Lip sync completed!')
+            
+            // Set the download URL
+            const downloadUrl = lipSyncApi.getDownloadUrl(newJobId)
+            setOutputVideoUrl(downloadUrl)
+          } else if (status.status === 'failed') {
+            clearInterval(statusInterval)
+            setIsProcessing(false)
+            setError(status.error || 'Processing failed')
+            setStatusMessage('')
+          } else if (status.status === 'processing') {
+            // Use real progress from backend
+            const backendProgress = status.progress || 0
+            const stage = status.stage || 'Processing...'
+            setProgress(backendProgress)
+            setStatusMessage(stage)
+          }
+        } catch (err) {
+          console.error('Status check error:', err)
         }
-        return prev + Math.random() * 25
-      })
-    }, 600)
+      }, 2000) // Check every 2 seconds
+
+      // Timeout after 5 minutes
+      setTimeout(() => {
+        if (isProcessing) {
+          clearInterval(statusInterval)
+          setIsProcessing(false)
+          setError('Processing timeout. Please try again.')
+        }
+      }, 300000)
+
+    } catch (err: any) {
+      console.error('Lip sync error:', err)
+      setIsProcessing(false)
+      setError(err.message || 'Failed to start lip sync processing')
+      setStatusMessage('')
+    }
+  }
+
+  const handleDownload = async () => {
+    if (!jobId) return
+
+    try {
+      const blob = await lipSyncApi.download(jobId)
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `lip_sync_${jobId}.mp4`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+    } catch (err: any) {
+      console.error('Download error:', err)
+      setError('Failed to download video')
+    }
   }
 
   const recentJobs = [
@@ -190,6 +266,23 @@ export function LipSync() {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-semibold text-white mb-2">
+                    Bounding Box Shift
+                  </label>
+                  <input
+                    type="number"
+                    value={bboxShift}
+                    onChange={(e) => setBboxShift(parseInt(e.target.value) || 0)}
+                    className="w-full bg-[#0A1628] border border-white/20 rounded-lg px-4 py-2 text-white focus:border-cyan-500 focus:outline-none transition"
+                    min="-20"
+                    max="20"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    Adjust face detection area (default: 0)
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-white mb-2">
                     Synchronization Accuracy
                   </label>
                   <select className="w-full bg-[#0A1628] border border-white/20 rounded-lg px-4 py-2 text-white focus:border-cyan-500 focus:outline-none transition">
@@ -239,6 +332,25 @@ export function LipSync() {
               </div>
             </motion.div>
 
+            {/* Error Message */}
+            {error && (
+              <motion.div
+                className="bg-red-500/10 border border-red-500/30 rounded-xl p-6"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+              >
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-red-400 text-sm font-semibold mb-1">
+                      Error
+                    </p>
+                    <p className="text-red-300 text-xs">{error}</p>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
             {/* Processing Status */}
             {isProcessing && (
               <motion.div
@@ -246,8 +358,11 @@ export function LipSync() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
               >
-                <p className="text-cyan-400 text-sm font-semibold mb-4">
-                  Processing lip synchronization. Please wait...
+                <p className="text-cyan-400 text-sm font-semibold mb-2">
+                  {statusMessage || 'Processing lip synchronization...'}
+                </p>
+                <p className="text-gray-400 text-xs mb-4">
+                  Please wait... This may take a few minutes.
                 </p>
                 <div className="w-full bg-[#0A1628] rounded-full h-3 border border-cyan-500/20">
                   <motion.div
@@ -261,23 +376,56 @@ export function LipSync() {
               </motion.div>
             )}
 
-            {progress === 100 && !isProcessing && progress > 0 && (
+            {/* Success with Video Preview */}
+            {outputVideoUrl && !isProcessing && (
               <motion.div
                 className="bg-[#0D1F36] border border-green-500/30 rounded-xl p-6"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
               >
-                <p className="text-green-400 text-sm font-semibold mb-4">
-                  ✓ Lip sync processing completed successfully!
-                </p>
+                <div className="flex items-start gap-3 mb-4">
+                  <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-green-400 text-sm font-semibold">
+                      ✓ Lip sync completed successfully!
+                    </p>
+                    <p className="text-gray-400 text-xs mt-1">
+                      Your video is ready for download and preview
+                    </p>
+                  </div>
+                </div>
+
+                {/* Video Preview */}
+                <div className="mb-4 rounded-lg overflow-hidden bg-black">
+                  <video
+                    controls
+                    className="w-full max-h-96"
+                    src={outputVideoUrl}
+                  >
+                    Your browser does not support the video tag.
+                  </video>
+                </div>
+
+                {/* Action Buttons */}
                 <div className="flex gap-3">
-                  <Button className="flex-1">
+                  <Button onClick={handleDownload} className="flex-1">
                     <Download className="w-4 h-4" />
                     Download Video
                   </Button>
-                  <Button variant="outline" className="flex-1">
-                    <Play className="w-4 h-4" />
-                    Preview
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => {
+                      setVideoFile(null)
+                      setAudioFile(null)
+                      setOutputVideoUrl(null)
+                      setProgress(0)
+                      setJobId(null)
+                      setError(null)
+                    }}
+                  >
+                    <Zap className="w-4 h-4" />
+                    New Lip Sync
                   </Button>
                 </div>
               </motion.div>

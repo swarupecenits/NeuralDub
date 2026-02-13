@@ -63,27 +63,82 @@ class LipSyncService:
         """Load all required MuseTalk models"""
         try:
             # Import MuseTalk utilities
-            from musetalk.utils.utils import load_all_model
             from musetalk.utils.audio_processor import AudioProcessor
             from musetalk.utils.face_parsing import FaceParsing
+            from diffusers import AutoencoderKL, UNet2DConditionModel
+            from diffusers.models.embeddings import TimestepEmbedding
+            import json
             
-            logger.info("Loading MuseTalk models from: {}".format(self.models_dir))
+            logger.info(f"Loading MuseTalk models from: {self.models_dir}")
             
-            # Load all models using MuseTalk's utility function
-            model_dict = load_all_model()
+            # Check if models directory exists
+            if not os.path.exists(self.models_dir):
+                raise FileNotFoundError(f"Models directory not found: {self.models_dir}")
             
-            self.audio_processor = model_dict.get('audio_processor')
-            self.vae = model_dict.get('vae')
-            self.unet = model_dict.get('unet')
-            self.pe = model_dict.get('pe')
+            # Load VAE
+            logger.info("Loading VAE model...")
+            vae_path = os.path.join(self.models_dir, "sd-vae-ft-mse")
+            if not os.path.exists(vae_path):
+                raise FileNotFoundError(f"VAE model not found at: {vae_path}")
+            self.vae = AutoencoderKL.from_pretrained(vae_path).to(self.device)
+            logger.info("VAE loaded successfully")
+            
+            # Load UNet
+            logger.info("Loading UNet model...")
+            unet_config_path = os.path.join(self.models_dir, "musetalk", "musetalk.json")
+            if not os.path.exists(unet_config_path):
+                # Try v15
+                unet_config_path = os.path.join(self.models_dir, "musetalkV15", "musetalk.json")
+            
+            if not os.path.exists(unet_config_path):
+                raise FileNotFoundError(f"UNet config not found in models directory")
+            
+            with open(unet_config_path, 'r') as f:
+                unet_config = json.load(f)
+            
+            self.unet = UNet2DConditionModel(**unet_config).to(self.device)
+            
+            # Load UNet weights if available
+            unet_weights_path = os.path.join(self.models_dir, "musetalkV15", "unet.pth")
+            if os.path.exists(unet_weights_path):
+                logger.info(f"Loading UNet weights from: {unet_weights_path}")
+                unet_weights = torch.load(unet_weights_path, map_location=self.device)
+                self.unet.load_state_dict(unet_weights)
+            logger.info("UNet loaded successfully")
+            
+            # Load position encoding (PE)
+            logger.info("Loading position encoding...")
+            pe_path = os.path.join(self.models_dir, "musetalk/positional_encoding.pth")
+            if os.path.exists(pe_path):
+                self.pe = torch.load(pe_path, map_location=self.device)
+            else:
+                # Use default if not found
+                logger.warning("Position encoding not found, using default")
+                self.pe = TimestepEmbedding(320, 1024).to(self.device)
+            logger.info("Position encoding loaded")
+            
+            # Load audio processor
+            logger.info("Loading audio processor...")
+            whisper_path = os.path.join(self.models_dir, "whisper")
+            if not os.path.exists(whisper_path):
+                raise FileNotFoundError(f"Whisper model not found at: {whisper_path}")
+            self.audio_processor = AudioProcessor(whisper_path)
+            logger.info("Audio processor loaded successfully")
             
             # Load face parsing
+            logger.info("Loading face parsing model...")
+            face_parse_path = os.path.join(self.models_dir, "face-parse-bisent", "79999_iter.pth")
+            if not os.path.exists(face_parse_path):
+                logger.warning("Face parsing model not found, will use default")
+            # FaceParsing will auto-load the model from the standard location
             self.face_parsing = FaceParsing()
+            logger.info("Face parsing loaded")
             
             logger.info("All models loaded successfully")
             
         except Exception as e:
             logger.error(f"Error loading models: {e}")
+            logger.exception(e)
             raise
     
     def check_models(self) -> bool:
@@ -154,7 +209,8 @@ class LipSyncService:
         video_path: str,
         audio_path: str,
         output_path: str,
-        bbox_shift: int = 0
+        bbox_shift: int = 0,
+        progress_callback=None
     ) -> Dict:
         """
         Generate lip-synced video
@@ -164,6 +220,7 @@ class LipSyncService:
             audio_path: Path to input audio file
             output_path: Path to save output video
             bbox_shift: Bounding box shift parameter
+            progress_callback: Optional callback function(progress, stage) for progress updates
             
         Returns:
             Dict with result information
@@ -177,41 +234,107 @@ class LipSyncService:
             }
         
         try:
+            if progress_callback:
+                progress_callback(5, 'Initializing...')
+            
             logger.info(f"Starting lip sync generation")
             logger.info(f"Video: {video_path}")
             logger.info(f"Audio: {audio_path}")
             logger.info(f"Output: {output_path}")
             
-            # Import inference function
-            from scripts.inference import inference
+            # Import MuseTalk inference
+            from scripts.inference import main as musetalk_main
+            from omegaconf import OmegaConf
+            import argparse
             
-            # Create temp directory for avatar processing
-            temp_dir = os.path.join(os.path.dirname(output_path), 'temp_avatar')
+            # Create temp directory structure
+            temp_dir = os.path.join(os.path.dirname(output_path), 'temp_musetalk')
             os.makedirs(temp_dir, exist_ok=True)
             
-            # Preprocess video
-            avatar_info = self.preprocess_video(video_path, temp_dir)
+            # Create inference config
+            input_basename = os.path.basename(video_path).split('.')[0]
+            audio_basename = os.path.basename(audio_path).split('.')[0]
+            output_basename = f"{input_basename}_{audio_basename}"
             
-            # Run inference
-            logger.info("Running MuseTalk inference...")
-            result = inference(
-                audio_path=audio_path,
-                video_path=video_path,
+            if progress_callback:
+                progress_callback(10, 'Preparing inference configuration...')
+            
+            # Save inference config
+            config_path = os.path.join(temp_dir, 'inference_config.yaml')
+            config_content = {
+                'task1': {
+                    'video_path': video_path,
+                    'audio_path': audio_path,
+                    'bbox_shift': bbox_shift,
+                    'result_name': os.path.basename(output_path)
+                }
+            }
+            OmegaConf.save(config_content, config_path)
+            
+            if progress_callback:
+                progress_callback(15, 'Loading models...')
+            
+            # Create args namespace to pass to MuseTalk main function
+            args = argparse.Namespace(
+                ffmpeg_path='',  # Use system ffmpeg
+                gpu_id=0,  # MuseTalk will choose cuda:0 or cpu based on availability
+                vae_type='sd-vae-ft-mse',
+                unet_config=os.path.join(self.models_dir, 'musetalk', 'musetalk.json'),
+                unet_model_path=os.path.join(self.models_dir, 'musetalkV15', 'unet.pth'),
+                whisper_dir=os.path.join(self.models_dir, 'whisper'),
+                inference_config=config_path,
                 bbox_shift=bbox_shift,
                 result_dir=os.path.dirname(output_path),
-                vae=self.vae,
-                unet=self.unet,
-                pe=self.pe,
-                audio_processor=self.audio_processor,
-                device=self.device
+                extra_margin=10,
+                fps=25,
+                audio_padding_length_left=2,
+                audio_padding_length_right=2,
+                batch_size=8,
+                output_vid_name=os.path.basename(output_path),
+                use_saved_coord=False,
+                saved_coord=False,
+                use_float16=False,
+                parsing_mode='jaw',
+                left_cheek_width=90,
+                right_cheek_width=90,
+                version='v15'
             )
             
+            if progress_callback:
+                progress_callback(20, 'Processing video and extracting landmarks...')
+            
+            # Run MuseTalk inference
+            logger.info("Running MuseTalk inference...")
+            musetalk_main(args)
+            
+            if progress_callback:
+                progress_callback(90, 'Finalizing output video...')
+            
+            # MuseTalk saves output in a version subdirectory (v15/)
+            actual_output_path = os.path.join(os.path.dirname(output_path), 'v15', os.path.basename(output_path))
+            
+            # Check if output file was created in the v15 subdirectory
+            if not os.path.exists(actual_output_path):
+                raise Exception(f"Output file not created at {actual_output_path}")
+            
+            # Move the file to the expected location
+            import shutil
+            shutil.move(actual_output_path, output_path)
+            
+            if progress_callback:
+                progress_callback(95, 'Cleaning up temporary files...')
+            
+            # Clean up the v15 directory if empty
+            v15_dir = os.path.join(os.path.dirname(output_path), 'v15')
+            if os.path.exists(v15_dir) and not os.listdir(v15_dir):
+                os.rmdir(v15_dir)
+            
             logger.info("Lip sync generation completed successfully")
+            logger.info(f"Output file size: {os.path.getsize(output_path)} bytes")
             
             return {
                 'success': True,
                 'output_path': output_path,
-                'avatar_info': avatar_info,
                 'message': 'Lip sync completed successfully'
             }
             

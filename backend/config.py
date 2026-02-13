@@ -37,7 +37,7 @@ class Config:
     
     # Lip Sync (MuseTalk) settings
     MUSETALK_PATH = os.getenv('MUSETALK_PATH', r'C:\Users\swaru\Documents\FYP Project\Project Codework\Lip Syncing\MuseTalk')
-    MUSETALK_MODELS_DIR = os.getenv('MUSETALK_MODELS_DIR', r'C:\Users\swaru\Documents\FYP Project\Project Codework\Lip Syncing\MuseTalk\models')
+    MUSETALK_MODELS_DIR = os.getenv('MUSETALK_MODELS_DIR', os.path.join(os.path.dirname(__file__), 'models'))
     LIP_SYNC_DEVICE = os.getenv('LIP_SYNC_DEVICE', 'cuda')  # cuda or cpu
     LIP_SYNC_BBOX_SHIFT = int(os.getenv('LIP_SYNC_BBOX_SHIFT', 0))
     MAX_VIDEO_SIZE = 500 * 1024 * 1024  # 500MB max video size

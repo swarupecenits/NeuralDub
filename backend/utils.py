@@ -7,7 +7,7 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__) 
 
 
 def ensure_logs_directory():

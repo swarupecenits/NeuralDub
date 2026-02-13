@@ -48,7 +48,7 @@ def create_app(config=None):
     CORS(
         app,
         origins=app.config.get('CORS_ORIGINS', ['http://localhost:5173']),
-        methods=['GET', 'POST', 'OPTIONS'],
+        methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
         allow_headers=['Content-Type', 'Authorization'],
         supports_credentials=True,
         max_age=3600
