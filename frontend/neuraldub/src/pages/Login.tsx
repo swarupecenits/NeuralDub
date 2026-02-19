@@ -1,18 +1,32 @@
 import React, { useState } from 'react';
 import { ArrowRight, Mic2 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Button } from '../components/Button';
+import { useAuth } from '../context/AuthContext';
 
 export function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const { login } = useAuth();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    navigate('/dashboard');
+    setError('');
+    setLoading(true);
+
+    try {
+      await login(email, password);
+      navigate('/dashboard');
+    } catch (err: any) {
+      setError(err.message || 'Failed to login');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -36,6 +50,12 @@ export function Login() {
 
         {/* Form Card */}
         <div className="bg-[#0D1F36] border border-white/10 rounded-2xl p-8 mb-6">
+          {error && (
+            <div className="mb-4 p-3 bg-red-500/10 border border-red-500/50 rounded-lg text-red-400 text-sm">
+              {error}
+            </div>
+          )}
+
           <form onSubmit={handleLogin} className="space-y-5">
             <div>
               <label className="block text-sm font-medium text-white mb-2">Email Address</label>
@@ -76,8 +96,8 @@ export function Login() {
               </a>
             </div>
 
-            <Button type="submit" size="lg" className="w-full">
-              Sign In
+            <Button type="submit" size="lg" className="w-full" disabled={loading}>
+              {loading ? 'Signing in...' : 'Sign In'}
               <ArrowRight className="w-4 h-4 ml-2" />
             </Button>
 
@@ -117,9 +137,9 @@ export function Login() {
           <div className="mt-8 pt-8 border-t border-white/10 text-center">
             <p className="text-gray-400 text-sm">
               Don't have an account?{' '}
-              <a href="/signup" className="text-cyan-400 hover:text-cyan-300 transition font-semibold">
+              <Link to="/signup" className="text-cyan-400 hover:text-cyan-300 transition font-semibold">
                 Create one
-              </a>
+              </Link>
             </p>
           </div>
         </div>

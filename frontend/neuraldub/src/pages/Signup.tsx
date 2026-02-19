@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { ArrowRight, Check, Mic2 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Button } from '../components/Button';
+import { useAuth } from '../context/AuthContext';
 
 export function Signup() {
   const [formData, setFormData] = useState({
@@ -12,14 +13,35 @@ export function Signup() {
     confirmPassword: '',
     acceptTerms: false,
   });
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const { signup } = useAuth();
 
-  const handleSignup = (e: React.FormEvent) => {
+  const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+
     if (formData.password !== formData.confirmPassword) {
+      setError('Passwords do not match');
       return;
     }
-    navigate('/dashboard');
+
+    if (!isPasswordStrong) {
+      setError('Please create a stronger password');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      await signup(formData.email, formData.password, formData.name);
+      navigate('/dashboard');
+    } catch (err: any) {
+      setError(err.message || 'Failed to create account');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const passwordStrength = {
@@ -52,6 +74,12 @@ export function Signup() {
 
         {/* Form Card */}
         <div className="bg-[#0D1F36] border border-white/10 rounded-2xl p-8 mb-6">
+          {error && (
+            <div className="mb-4 p-3 bg-red-500/10 border border-red-500/50 rounded-lg text-red-400 text-sm">
+              {error}
+            </div>
+          )}
+
           <form onSubmit={handleSignup} className="space-y-5">
             <div>
               <label className="block text-sm font-medium text-white mb-2">Full Name</label>
@@ -155,9 +183,9 @@ export function Signup() {
               type="submit"
               size="lg"
               className="w-full"
-              disabled={!isPasswordStrong || !formData.acceptTerms}
+              disabled={!isPasswordStrong || !formData.acceptTerms || loading}
             >
-              Create Account
+              {loading ? 'Creating Account...' : 'Create Account'}
               <ArrowRight className="w-4 h-4 ml-2" />
             </Button>
 
@@ -197,9 +225,9 @@ export function Signup() {
           <div className="mt-8 pt-8 border-t border-white/10 text-center">
             <p className="text-gray-400 text-sm">
               Already have an account?{' '}
-              <a href="/login" className="text-cyan-400 hover:text-cyan-300 transition font-semibold">
+              <Link to="/login" className="text-cyan-400 hover:text-cyan-300 transition font-semibold">
                 Sign in
-              </a>
+              </Link>
             </p>
           </div>
         </div>

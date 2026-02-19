@@ -1,17 +1,59 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User, Lock, Bell, LogOut } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/Button';
+import { useAuth } from '../context/AuthContext';
 
 export function Profile() {
+  const { user, profile, updateProfile, logout } = useAuth();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('profile');
   const [userData, setUserData] = useState({
-    name: 'John Doe',
-    email: 'john@example.com',
-    phone: '+1 (555) 123-4567',
-    country: 'United States',
-    bio: 'Content creator and translator',
+    name: '',
+    phone: '',
+    country: '',
+    bio: '',
   });
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState('');
+  const [messageType, setMessageType] = useState<'success' | 'error'>('success');
+
+  useEffect(() => {
+    if (profile) {
+      setUserData({
+        name: profile.name || '',
+        phone: profile.phone || '',
+        country: profile.country || '',
+        bio: profile.bio || '',
+      });
+    }
+  }, [profile]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    setMessage('');
+    try {
+      await updateProfile(userData);
+      setMessage('Profile updated successfully!');
+      setMessageType('success');
+    } catch (error: any) {
+      setMessage(error.message || 'Failed to update profile');
+      setMessageType('error');
+    } finally {
+      setSaving(false);
+      setTimeout(() => setMessage(''), 3000);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      navigate('/login');
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
+  };
 
   const tabs = ['Profile', 'Settings', 'Security'];
 
@@ -35,8 +77,8 @@ export function Profile() {
               <User className="w-12 h-12 text-white" />
             </div>
             <div>
-              <h2 className="text-2xl font-bold text-white">{userData.name}</h2>
-              <p className="text-gray-400">{userData.email}</p>
+              <h2 className="text-2xl font-bold text-white">{userData.name || user?.name || 'User'}</h2>
+              <p className="text-gray-400">{user?.email || ''}</p>
             </div>
           </div>
         </motion.div>
@@ -71,6 +113,16 @@ export function Profile() {
                 Profile Information
               </h2>
 
+              {message && (
+                <div className={`mb-4 p-3 rounded-lg text-sm ${
+                  messageType === 'success' 
+                    ? 'bg-green-500/10 border border-green-500/50 text-green-400' 
+                    : 'bg-red-500/10 border border-red-500/50 text-red-400'
+                }`}>
+                  {message}
+                </div>
+              )}
+
               <div className="space-y-5">
                 <div>
                   <label className="block text-sm font-medium text-white mb-2">Full Name</label>
@@ -86,10 +138,12 @@ export function Profile() {
                   <label className="block text-sm font-medium text-white mb-2">Email</label>
                   <input
                     type="email"
-                    value={userData.email}
-                    onChange={(e) => setUserData({ ...userData, email: e.target.value })}
-                    className="w-full bg-[#0A1628] border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-cyan-500 transition"
+                    value={user?.email || ''}
+                    className="w-full bg-[#0A1628] border border-white/20 rounded-lg px-4 py-3 text-gray-400 cursor-not-allowed"
+                    disabled
+                    readOnly
                   />
+                  <p className="text-xs text-gray-500 mt-1">Email cannot be changed</p>
                 </div>
 
                 <div>
@@ -99,6 +153,7 @@ export function Profile() {
                     value={userData.phone}
                     onChange={(e) => setUserData({ ...userData, phone: e.target.value })}
                     className="w-full bg-[#0A1628] border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-cyan-500 transition"
+                    placeholder="+91 1234567890"
                   />
                 </div>
 
@@ -109,6 +164,7 @@ export function Profile() {
                     value={userData.country}
                     onChange={(e) => setUserData({ ...userData, country: e.target.value })}
                     className="w-full bg-[#0A1628] border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-cyan-500 transition"
+                    placeholder="India"
                   />
                 </div>
 
@@ -123,7 +179,9 @@ export function Profile() {
                   />
                 </div>
 
-                <Button className="w-full">Save Changes</Button>
+                <Button className="w-full" onClick={handleSave} disabled={saving}>
+                  {saving ? 'Saving...' : 'Save Changes'}
+                </Button>
               </div>
             </div>
           </motion.div>
@@ -197,7 +255,7 @@ export function Profile() {
 
               <div className="border-t border-white/10 pt-6">
                 <h3 className="text-white font-semibold mb-4">Sign Out</h3>
-                <Button variant="secondary">
+                <Button variant="secondary" onClick={handleLogout}>
                   <LogOut className="w-4 h-4 mr-2" />
                   Sign Out From All Devices
                 </Button>
