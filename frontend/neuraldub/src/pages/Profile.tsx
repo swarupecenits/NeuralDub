@@ -1,13 +1,14 @@
-import React, { useState, useEffect } from 'react';
-import { User, Lock, Bell, LogOut } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { User, Lock, Bell, LogOut, Camera, Trash2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/Button';
 import { useAuth } from '../context/AuthContext';
 
 export function Profile() {
-  const { user, profile, updateProfile, logout } = useAuth();
+  const { user, profile, updateProfile, logout, uploadAvatar, deleteAvatar } = useAuth();
   const navigate = useNavigate();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeTab, setActiveTab] = useState('profile');
   const [userData, setUserData] = useState({
     name: '',
@@ -16,6 +17,7 @@ export function Profile() {
     bio: '',
   });
   const [saving, setSaving] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState<'success' | 'error'>('success');
 
@@ -55,6 +57,65 @@ export function Profile() {
     }
   };
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      setMessage('Please select an image file');
+      setMessageType('error');
+      setTimeout(() => setMessage(''), 3000);
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setMessage('Image size should be less than 5MB');
+      setMessageType('error');
+      setTimeout(() => setMessage(''), 3000);
+      return;
+    }
+
+    setUploadingImage(true);
+    setMessage('');
+
+    try {
+      await uploadAvatar(file);
+      setMessage('Profile image updated successfully!');
+      setMessageType('success');
+    } catch (error: any) {
+      setMessage(error.message || 'Failed to upload image');
+      setMessageType('error');
+    } finally {
+      setUploadingImage(false);
+      setTimeout(() => setMessage(''), 3000);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleDeleteAvatar = async () => {
+    if (!confirm('Are you sure you want to remove your profile image?')) return;
+
+    setUploadingImage(true);
+    setMessage('');
+
+    try {
+      await deleteAvatar();
+      setMessage('Profile image removed successfully!');
+      setMessageType('success');
+    } catch (error: any) {
+      setMessage(error.message || 'Failed to remove image');
+      setMessageType('error');
+    } finally {
+      setUploadingImage(false);
+      setTimeout(() => setMessage(''), 3000);
+    }
+  };
+
   const tabs = ['Profile', 'Settings', 'Security'];
 
   return (
@@ -73,12 +134,66 @@ export function Profile() {
           className="bg-[#0D1F36] border border-white/10 rounded-2xl p-8 mb-8"
         >
           <div className="flex items-center gap-6">
-            <div className="w-24 h-24 bg-gradient-to-br from-cyan-500 to-cyan-600 rounded-full flex items-center justify-center">
-              <User className="w-12 h-12 text-white" />
+            <div className="relative group">
+              {profile?.avatarUrl ? (
+                <img
+                  src={profile.avatarUrl}
+                  alt="Profile"
+                  className="w-24 h-24 rounded-full object-cover border-2 border-cyan-500/30"
+                />
+              ) : (
+                <div className="w-24 h-24 bg-gradient-to-br from-cyan-500 to-cyan-600 rounded-full flex items-center justify-center">
+                  <User className="w-12 h-12 text-white" />
+                </div>
+              )}
+              
+              {/* Upload/Delete buttons overlay */}
+              <div className="absolute inset-0 rounded-full bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploadingImage}
+                  className="p-2 bg-cyan-500 rounded-full hover:bg-cyan-600 transition disabled:opacity-50"
+                  title="Upload photo"
+                >
+                  <Camera className="w-4 h-4 text-white" />
+                </button>
+                {profile?.avatarUrl && (
+                  <button
+                    onClick={handleDeleteAvatar}
+                    disabled={uploadingImage}
+                    className="p-2 bg-red-500 rounded-full hover:bg-red-600 transition disabled:opacity-50"
+                    title="Remove photo"
+                  >
+                    <Trash2 className="w-4 h-4 text-white" />
+                  </button>
+                )}
+              </div>
+              
+              {uploadingImage && (
+                <div className="absolute inset-0 rounded-full bg-black/60 flex items-center justify-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-cyan-500"></div>
+                </div>
+              )}
             </div>
+            
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleImageUpload}
+              className="hidden"
+            />
+            
             <div>
               <h2 className="text-2xl font-bold text-white">{userData.name || user?.name || 'User'}</h2>
               <p className="text-gray-400">{user?.email || ''}</p>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadingImage}
+                className="mt-2 text-sm text-cyan-400 hover:text-cyan-300 transition disabled:opacity-50"
+              >
+                {profile?.avatarUrl ? 'Change photo' : 'Upload photo'}
+              </button>
             </div>
           </div>
         </motion.div>

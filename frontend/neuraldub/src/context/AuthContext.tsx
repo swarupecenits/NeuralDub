@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { account, databases, appwriteConfig } from '../lib/appwrite';
+import { account, databases, storage, appwriteConfig } from '../lib/appwrite';
 import { ID, Models } from 'appwrite';
 
 interface User extends Models.User<Models.Preferences> {
@@ -14,6 +14,8 @@ interface UserProfile {
   phone?: string;
   country?: string;
   bio?: string;
+  avatarUrl?: string;
+  avatarFileId?: string;
 }
 
 interface AuthContextType {
@@ -24,6 +26,8 @@ interface AuthContextType {
   signup: (email: string, password: string, name: string) => Promise<void>;
   logout: () => Promise<void>;
   updateProfile: (data: UserProfile) => Promise<void>;
+  uploadAvatar: (file: File) => Promise<string>;
+  deleteAvatar: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -130,9 +134,67 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const uploadAvatar = async (file: File): Promise<string> => {
+    try {
+      if (!user) throw new Error('No user logged in');
+      
+      // Delete old avatar if exists
+      if (profile?.avatarFileId) {
+        try {
+          await storage.deleteFile(appwriteConfig.storageBucketId, profile.avatarFileId);
+        } catch (err) {
+          console.log('Old avatar not found or already deleted');
+        }
+      }
+
+      // Upload new avatar
+      const fileId = ID.unique();
+      const uploadedFile = await storage.createFile(
+        appwriteConfig.storageBucketId,
+        fileId,
+        file
+      );
+
+      // Get file URL
+      const fileUrl = storage.getFileView(
+        appwriteConfig.storageBucketId,
+        uploadedFile.$id
+      ).toString();
+
+      // Update profile with avatar URL and fileId
+      await updateProfile({
+        ...profile!,
+        avatarUrl: fileUrl,
+        avatarFileId: uploadedFile.$id,
+      });
+
+      return fileUrl;
+    } catch (error: any) {
+      throw new Error(error.message || 'Avatar upload failed');
+    }
+  };
+
+  const deleteAvatar = async () => {
+    try {
+      if (!profile?.avatarFileId) throw new Error('No avatar to delete');
+
+      // Delete file from storage
+      await storage.deleteFile(appwriteConfig.storageBucketId, profile.avatarFileId);
+
+      // Update profile to remove avatar
+      await updateProfile({
+        ...profile,
+        avatarUrl: '',
+        avatarFileId: '',
+      });
+    } catch (error: any) {
+      throw new Error(error.message || 'Avatar deletion failed');
+    }
+  };
+
   return (
     <AuthContext.Provider
-      value={{ user, profile, loading, login, signup, logout, updateProfile }}
+      value={{ user, profile, loading, login, signup, logout, updateProfile, uploadAvatar, deleteAvatar }}
     >
       {children}
     </AuthContext.Provider>

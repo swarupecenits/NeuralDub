@@ -1,4 +1,4 @@
-import { Client, Account, Databases } from 'appwrite';
+import { Client, Account, Databases, Storage } from 'appwrite';
 
 const client = new Client();
 
@@ -8,10 +8,12 @@ client
 
 export const account = new Account(client);
 export const databases = new Databases(client);
+export const storage = new Storage(client);
 
 export const appwriteConfig = {
   databaseId: import.meta.env.VITE_APPWRITE_DATABASE_ID,
   usersCollectionId: import.meta.env.VITE_APPWRITE_USERS_COLLECTION_ID,
+  storageBucketId: import.meta.env.VITE_APPWRITE_STORAGE_BUCKET_ID || 'avatars',
 };
 
 export default client;
