@@ -36,19 +36,19 @@ export function Dashboard() {
   const recentJobs = [
     {
       id: 1,
-      name: 'Product Demo Video',
-      language: 'English → Spanish',
+      name: 'NPTEL Demo Video',
+      language: 'English → Bengali',
       status: 'completed',
       progress: 100,
-      date: '2024-01-23',
+      date: '2025-12-23',
     },
     {
       id: 2,
-      name: 'Interview Recording',
-      language: 'English → French',
+      name: 'Lecture Recording',
+      language: 'English → Telugu',
       status: 'processing',
       progress: 65,
-      date: '2024-01-23',
+      date: '2026-01-23',
     },
     {
       id: 3,
@@ -60,11 +60,11 @@ export function Dashboard() {
     },
     {
       id: 4,
-      name: 'Podcast Episode',
-      language: 'English → German',
+      name: 'NPTEL Database Lecture',
+      language: 'English → Marathi',
       status: 'completed',
       progress: 100,
-      date: '2024-01-22',
+      date: '2026-02-12',
     },
   ];
 
