@@ -5,36 +5,35 @@ import { Link } from 'react-router-dom';
 import { Button } from './Button';
 export function Hero() {
   return (
-    <section className="relative min-h-screen flex items-center justify-center pt-0 overflow-hidden">
+    <section className="relative min-h-screen flex items-center justify-center pt-20 overflow-hidden">
       {/* Background Elements */}
-      <div className="absolute inset-0 bg-[#0A1628]">
+      <div className="absolute inset-0 bg-[#040914]">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full max-w-7xl">
-          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-cyan-500/20 rounded-full blur-[128px]" />
-          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue-600/20 rounded-full blur-[128px]" />
+          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-cyan-500/20 rounded-full blur-[140px] mix-blend-screen" />
+          <div className="absolute bottom-1/4 right-1/4 w-[30rem] h-[30rem] bg-blue-600/20 rounded-full blur-[140px] mix-blend-screen" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[40rem] h-[40rem] bg-indigo-500/10 rounded-full blur-[160px] mix-blend-screen" />
         </div>
-        <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20" />
+        <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay" />
         
         {/* Waveform Animation Background */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ duration: 1, delay: 0.5 }}
-          className="absolute inset-0 flex items-center justify-center"
+          transition={{ duration: 1.5, delay: 0.5 }}
+          className="absolute inset-x-0 bottom-0 flex items-end justify-center translate-y-6 pointer-events-none"
         >
-          <div className="flex items-center justify-center gap-1 h-64 opacity-20">
-            {[...Array(40)].map((_, i) => (
+          <div className="flex items-end justify-center gap-1.5 h-64 opacity-30 mask-image-bottom">
+            {[...Array(60)].map((_, i) => (
               <motion.div
                 key={i}
-                animate={{
-                  height: [20, Math.random() * 200 + 40, 20]
-                }}
+                animate={{ height: [20, Math.random() * 250 + 40, 20] }}
                 transition={{
-                  duration: 2,
+                  duration: 2 + Math.random() * 2,
                   repeat: Infinity,
                   ease: 'easeInOut',
                   delay: i * 0.05
                 }}
-                className="w-1 bg-gradient-to-t from-cyan-500/40 to-blue-500/40 rounded-full"
+                className="w-1.5 bg-gradient-to-t from-cyan-400/80 to-blue-600/20 rounded-t-full"
               />
             ))}
           </div>
@@ -64,23 +63,17 @@ export function Hero() {
         </motion.div>
 
         <motion.h1
-          initial={{
-            opacity: 0,
-            y: 20
-          }}
-          animate={{
-            opacity: 1,
-            y: 0
-          }}
-          transition={{
-            duration: 0.6,
-            delay: 0.1
-          }}
-          className="text-5xl md:text-7xl font-bold text-white tracking-tight mb-6">
-
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.1 }}
+          className="text-5xl md:text-7xl font-extrabold text-white tracking-tighter mb-6 relative"
+        >
           Speak Once. <br />
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">
-            Be Understood Everywhere.
+          <span className="relative inline-block mt-2">
+            <span className="absolute -inset-1 blur-2xl bg-gradient-to-r from-cyan-400/40 to-blue-600/40 opacity-70"></span>
+            <span className="relative text-transparent bg-clip-text bg-gradient-to-br from-cyan-300 via-cyan-400 to-blue-500 drop-shadow-sm">
+              Be Understood Everywhere.
+            </span>
           </span>
         </motion.h1>
 

@@ -107,19 +107,35 @@ export function VoiceClone() {
     setGenerationProgress(0);
     setGeneratedAudioUrl(null);
     
-    const interval = setInterval(() => {
-      setGenerationProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setIsGenerating(false);
-          // Generate dummy audio after generation completes
-          const audioUrl = generateDummyAudio();
-          setGeneratedAudioUrl(audioUrl);
-          return 100;
-        }
-        return prev + Math.random() * 20;
-      });
-    }, 800);
+    // We will use the local dummy wav file from src/assets instead of wave gen if possible.
+    import('../assets/Npetel Female audio-hindi_v2.wav').then(module => {
+      const dummyFileUrl = module.default;
+      const interval = setInterval(() => {
+        setGenerationProgress((prev) => {
+          if (prev >= 100) {
+            clearInterval(interval);
+            setIsGenerating(false);
+            setGeneratedAudioUrl(dummyFileUrl);
+            return 100;
+          }
+          return prev + Math.random() * 20;
+        });
+      }, 800);
+    }).catch(err => {
+      // fallback
+      const interval = setInterval(() => {
+        setGenerationProgress((prev) => {
+          if (prev >= 100) {
+            clearInterval(interval);
+            setIsGenerating(false);
+            const audioUrl = generateDummyAudio();
+            setGeneratedAudioUrl(audioUrl);
+            return 100;
+          }
+          return prev + Math.random() * 20;
+        });
+      }, 800);
+    });
   };
 
   const handleSaveGeneration = () => {

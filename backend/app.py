@@ -167,7 +167,7 @@ def create_app(config=None):
         """Handle 413 errors (file too large)"""
         return jsonify({
             'success': False,
-            'error': 'File too large. Maximum size is 25MB',
+            'error': 'File too large. Maximum size is 100MB',
             'status_code': 413
         }), 413
     

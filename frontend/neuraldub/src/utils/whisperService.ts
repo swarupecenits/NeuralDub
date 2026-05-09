@@ -108,7 +108,7 @@ export function validateAudioFile(file: File): {
   valid: boolean
   error?: string
 } {
-  const maxSize = 25 * 1024 * 1024 // 25MB limit (Whisper default)
+  const maxSize = 100 * 1024 * 1024 // 100MB limit (Whisper extension)
   const validFormats = [
     'audio/mpeg',
     'audio/wav',
@@ -127,7 +127,7 @@ export function validateAudioFile(file: File): {
   if (file.size > maxSize) {
     return {
       valid: false,
-      error: `File too large: ${(file.size / 1024 / 1024).toFixed(2)}MB. Maximum: 25MB`,
+      error: `File too large: ${(file.size / 1024 / 1024).toFixed(2)}MB. Maximum: 100MB`,
     }
   }
 

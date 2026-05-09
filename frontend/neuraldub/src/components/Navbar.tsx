@@ -24,6 +24,7 @@ export function Navbar() {
   };
 
   const navLinks = [
+    { label: 'Magic Dub', path: '/magic-dub', icon: '' },
     { label: 'Translator', path: '/translate', icon: '' },
     { label: 'Voice Clone', path: '/voice-clone', icon: '' },
     { label: 'Lip Sync', path: '/lip-sync', icon: '' },

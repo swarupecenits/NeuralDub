@@ -12,6 +12,7 @@ import VoiceClone from './pages/VoiceClone';
 import LipSync from './pages/LipSync';
 import NotFound from './pages/NotFound';
 import LiveTranslator from './pages/LiveTranslator';
+import OneClickDub from './pages/OneClickDub';
 
 export function App() {
   return (
@@ -30,6 +31,7 @@ export function App() {
           <Route path="/voice-clone" element={<ProtectedRoute><VoiceClone /></ProtectedRoute>} />
           <Route path="/lip-sync" element={<ProtectedRoute><LipSync /></ProtectedRoute>} />
           <Route path="/live-translator" element={<ProtectedRoute><LiveTranslator /></ProtectedRoute>} />
+          <Route path="/magic-dub" element={<ProtectedRoute><OneClickDub /></ProtectedRoute>} />
           
           <Route path="*" element={<NotFound />} />
         </Routes>

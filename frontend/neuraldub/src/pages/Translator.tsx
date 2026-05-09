@@ -21,7 +21,7 @@ import {
   TranslationMetrics,
 } from '../utils/translationService'
 
-type Step = 'input' | 'processing' | 'results'
+type Step = 'input' | 'processing' | 'transcription-edit' | 'results'
 type InputMode = 'record' | 'upload' | 'text'
 
 interface TranslationState {
@@ -71,95 +71,107 @@ export function Translator() {
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  const textFileInputRef = useRef<HTMLInputElement>(null)
+
   // Handle audio recorded from microphone
   const handleAudioRecorded = (blob: Blob, duration: number) => {
     const file = new File([blob], `recording-${Date.now()}.wav`, { type: 'audio/wav' })
     setAudioFile(file)
   }
 
-  // Handle audio file upload
+  // Handle audio/video file upload
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
-      const validation = validateAudioFile(file)
-      if (!validation.valid) {
-        alert(validation.error)
-        return
+      // Allow video and audio formats
+      if (!file.type.startsWith('audio/') && !file.type.startsWith('video/')) {
+         alert('Please upload an audio or video file.')
+         return
       }
       setAudioFile(file)
     }
   }
 
-  // Start translation process
-  const startTranslation = async () => {
+  // Handle manual text file upload
+  const handleTextFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      const reader = new FileReader()
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          setManualText(event.target.result as string)
+        }
+      }
+      reader.readAsText(file)
+    }
+  }
+
+  // Start process (either transcribe first, or directly translate for text)
+  const handleStartProcess = async () => {
+    if (inputMode === 'record' || inputMode === 'upload') {
+      await startTranscription()
+    } else {
+      setTranslationState((prev) => ({
+        ...prev,
+        originalText: manualText,
+      }))
+      await continueTranslation(manualText)
+    }
+  }
+
+  const startTranscription = async () => {
     try {
+      if (!audioFile) {
+        throw new Error('No audio/video file selected')
+      }
       setStep('processing')
       setProgress(0)
-      setProgressStatus('Initializing...')
-      let finalText = ''
+      setProgressStatus('Transcribing with Whisper...')
+      setProgress(20)
 
-      // Step 1: Handle input (transcribe if audio, or use manual text)
-      if (inputMode === 'record' || inputMode === 'upload') {
-        if (!audioFile) {
-          throw new Error('No audio file selected')
-        }
+      const startTranscribeTime = Date.now()
+      const transcription = await transcribeAudio(audioFile, sourceLang)
+      
+      const transcribeDuration = (Date.now() - startTranscribeTime) / 1000
+      const transcriptionMetrics = extractTranscriptionMetrics(transcription, transcribeDuration)
 
-        setProgressStatus('Transcribing audio with Whisper...')
-        setProgress(20)
+      setTranslationState((prev) => ({
+        ...prev,
+        originalText: transcription.text,
+        transcriptionMetrics,
+      }))
 
-        const startTranscribeTime = Date.now()
-        let transcription: WhisperTranscription
+      setProgress(100)
+      setTimeout(() => setStep('transcription-edit'), 500)
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'An error occurred'
+      console.error('Transcription error:', error)
+      setTranslationState((prev) => ({ ...prev, error: errorMessage }))
+      setStep('input')
+      alert(`Error: ${errorMessage}`)
+    }
+  }
 
-        try {
-          transcription = await transcribeAudio(audioFile, sourceLang)
-        } catch (error) {
-          // If backend transcription fails, show informative message
-          console.error('Transcription error:', error)
-          throw new Error(
-            'Speech recognition failed. Please ensure Whisper backend is running and audio is clear.'
-          )
-        }
-
-        finalText = transcription.text
-        const transcribeDuration = (Date.now() - startTranscribeTime) / 1000
-
-        // Calculate transcription metrics
-        const transcriptionMetrics = extractTranscriptionMetrics(transcription, transcribeDuration)
-        setTranslationState((prev) => ({
-          ...prev,
-          originalText: finalText,
-          transcriptionMetrics,
-        }))
-
-        setProgress(40)
-      } else {
-        // Use manual text input
-        finalText = manualText
-        setTranslationState((prev) => ({
-          ...prev,
-          originalText: finalText,
-        }))
-        setProgress(40)
-      }
-
-      if (!finalText || finalText.trim().length === 0) {
+  const continueTranslation = async (textToTranslate: string) => {
+    try {
+      if (!textToTranslate || textToTranslate.trim().length === 0) {
         throw new Error('No text to translate')
       }
-
-      // Step 2: Translate text with IndicTrans2
+      setStep('processing')
+      setProgress(0)
       setProgressStatus('Translating with IndicTrans2...')
       setProgress(60)
 
       const startTranslateTime = Date.now()
       const translationResponse = await translateText({
-        text: finalText,
+        text: textToTranslate,
         sourceLang,
         targetLang,
       })
 
       const translateDuration = (Date.now() - startTranslateTime) / 1000
       const translationMetrics = extractTranslationMetrics(
-        finalText,
+        textToTranslate,
         translationResponse.translatedText,
         sourceLang,
         targetLang,
@@ -170,9 +182,9 @@ export function Translator() {
       setProgress(90)
       setProgressStatus('Finalizing results...')
 
-      // Step 3: Update state with results
       setTranslationState((prev) => ({
         ...prev,
+        originalText: textToTranslate, // In case user edited it
         translatedText: translationResponse.translatedText,
         translationMetrics,
         sourceLang,
@@ -184,10 +196,7 @@ export function Translator() {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'An error occurred'
       console.error('Translation error:', error)
-      setTranslationState((prev) => ({
-        ...prev,
-        error: errorMessage,
-      }))
+      setTranslationState((prev) => ({ ...prev, error: errorMessage }))
       setStep('input')
       alert(`Error: ${errorMessage}`)
     }
@@ -342,7 +351,7 @@ export function Translator() {
                       {inputMode === 'record'
                         ? '🎤 Record Your Speech'
                         : inputMode === 'upload'
-                          ? '📁 Upload Audio File'
+                          ? '📁 Upload Audio/Video'
                           : '✍️ Enter Text'}
                     </h2>
 
@@ -368,14 +377,14 @@ export function Translator() {
                           onClick={() => fileInputRef.current?.click()}
                           className="border-2 border-dashed border-cyan-500/50 rounded-xl p-8 text-center cursor-pointer hover:border-cyan-500 hover:bg-cyan-500/5 transition-all">
                           <Upload className="w-12 h-12 text-cyan-400 mx-auto mb-4" />
-                          <p className="text-white font-semibold mb-2">Click to upload audio file</p>
+                          <p className="text-white font-semibold mb-2">Click to upload audio or video file</p>
                           <p className="text-gray-400 text-sm">
-                            Supported: MP3, WAV, OGG, MP4, FLAC (Max 25MB)
+                            Supported: MP3, WAV, OGG, MP4, FLAC (Max 100MB)
                           </p>
                           <input
                             ref={fileInputRef}
                             type="file"
-                            accept="audio/*"
+                            accept="audio/*,video/*"
                             onChange={handleFileUpload}
                             className="hidden"
                           />
@@ -400,23 +409,41 @@ export function Translator() {
                     )}
 
                     {inputMode === 'text' && (
-                      <textarea
-                        value={manualText}
-                        onChange={(e) => setManualText(e.target.value)}
-                        placeholder="Enter text to translate..."
-                        className="w-full h-48 bg-[#0A1628] border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:border-cyan-500 focus:outline-none resize-none"
-                      />
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center mb-2">
+                          <p className="text-gray-300 text-sm">Write text manually or upload a text file mapping.</p>
+                          <button 
+                            onClick={() => textFileInputRef.current?.click()}
+                            className="flex items-center text-sm text-cyan-400 hover:text-cyan-300 transition-colors">
+                            <Upload className="w-4 h-4 mr-1" />
+                            Upload .txt
+                          </button>
+                          <input 
+                            ref={textFileInputRef}
+                            type="file"
+                            accept=".txt"
+                            onChange={handleTextFileUpload}
+                            className="hidden"
+                          />
+                        </div>
+                        <textarea
+                          value={manualText}
+                          onChange={(e) => setManualText(e.target.value)}
+                          placeholder="Enter text to translate..."
+                          className="w-full h-48 bg-[#0A1628] border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:border-cyan-500 focus:outline-none resize-none"
+                        />
+                      </div>
                     )}
 
                     {/* Action Buttons */}
                     <div className="flex gap-4 mt-8">
                       <Button
-                        onClick={startTranslation}
+                        onClick={handleStartProcess}
                         disabled={
                           (inputMode !== 'text' && !audioFile) || (inputMode === 'text' && !manualText)
                         }
                         className="flex-1">
-                        Start Translation
+                        {inputMode === 'text' ? 'Start Translation' : 'Start Transcription'}
                       </Button>
                       <Button
                         onClick={reset}
@@ -457,6 +484,34 @@ export function Translator() {
                   <p className="text-gray-300 text-sm">
                     This may take a few moments depending on audio length and server load...
                   </p>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {step === 'transcription-edit' && (
+            <motion.div
+              key="transcription-edit"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}>
+              <div className="bg-[#0D1F36] border border-white/10 rounded-2xl p-8">
+                <h2 className="text-2xl font-bold text-white mb-2">Review Transcription</h2>
+                <p className="text-gray-400 mb-6">You can edit the transcribed text below if you spot any discrepancies before translating.</p>
+                <textarea
+                  value={translationState.originalText}
+                  onChange={(e) => setTranslationState(prev => ({ ...prev, originalText: e.target.value }))}
+                  className="w-full h-64 bg-[#0A1628] border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:border-cyan-500 focus:outline-none resize-none mb-6"
+                />
+                <div className="flex gap-4 flex-wrap">
+                  <Button 
+                    onClick={() => continueTranslation(translationState.originalText)} 
+                    className="flex-1">
+                    Continue to Translation
+                  </Button>
+                  <Button onClick={reset} variant="secondary" className="flex-1">
+                    Cancel
+                  </Button>
                 </div>
               </div>
             </motion.div>

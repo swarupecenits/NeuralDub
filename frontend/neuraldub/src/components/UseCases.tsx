@@ -31,22 +31,27 @@ export function UseCases() {
   return (
     <section
       id="use-cases"
-      className="py-24 bg-[#0A1628] relative overflow-hidden">
+      className="py-32 bg-[#040914] relative overflow-hidden">
 
-      <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+      <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-blue-500/20 to-transparent" />
+      <div className="absolute top-1/4 right-0 w-1/2 h-1/2 bg-blue-600/5 blur-[120px] rounded-full pointer-events-none" />
+      <div className="absolute bottom-1/4 left-0 w-1/2 h-1/2 bg-cyan-600/5 blur-[120px] rounded-full pointer-events-none" />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+        <div className="text-center mb-20">
+          <div className="inline-flex items-center justify-center px-4 py-1.5 mb-6 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-sm font-semibold uppercase tracking-widest">
+            Applications
+          </div>
+          <h2 className="text-4xl md:text-5xl font-extrabold text-white mb-6 tracking-tight">
             Built for Everyone
           </h2>
-          <p className="text-gray-400 max-w-2xl mx-auto">
+          <p className="text-gray-400 text-lg max-w-2xl mx-auto">
             From individual creators to large enterprises, Neural Dub powers
             global communication.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
           {cases.map((useCase, index) =>
           <UseCaseCard key={index} {...useCase} delay={index * 0.1} />
           )}

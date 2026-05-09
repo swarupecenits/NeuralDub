@@ -16,7 +16,7 @@ class Config:
     
     # Flask settings
     JSON_SORT_KEYS = False
-    MAX_CONTENT_LENGTH = 25 * 1024 * 1024  # 25MB max file size
+    MAX_CONTENT_LENGTH = 100 * 1024 * 1024  # 100MB max file size
     
     # CORS settings
     CORS_ORIGINS = os.getenv('CORS_ORIGINS', 'http://localhost:5173').split(',')

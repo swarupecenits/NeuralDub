@@ -455,7 +455,7 @@ export CORS_ORIGINS=https://yourdomain.com
 - First request may be slow due to model loading
 - Subsequent requests will be faster (models stay in memory)
 - Supported languages: English and 22 Indic languages (Hindi, Bengali, Tamil, Telugu, etc.)
-- Maximum file size: 25MB
+- Maximum file size: 100MB
 - Maximum audio duration: 1 hour
 
 ## 🤝 Support
